@@ -1,0 +1,41 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(uint80 _roundId)\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n\n  function latestRoundData()\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n}\n"
+    },
+    "contracts/FundME.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.7;\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\nimport \"./PriceConverter.sol\";\n\nerror NotOwner();\n\n//contract to raise funds for a project\ncontract FundMe {\n    using PriceConverter for uint256;\n    uint256 public constant MINIMUM_USD = 10 * 1e18;\n    address[] public funders;\n    mapping(address => uint) public funderAmount;\n    address public immutable i_owner;\n    AggregatorV3Interface public priceFeed;\n\n    constructor(address priceFeedAddress) {\n        priceFeed = AggregatorV3Interface(priceFeedAddress);\n        i_owner = msg.sender;\n    }\n\n    //  1. where people can fund the project 2. to enable the project to raise funds.\n    function fundRaising() public payable {\n        //set a minimum amount to fund\n        require(\n            msg.value.convertedPriceRate(priceFeed) >= MINIMUM_USD,\n            \"the amount is not enough...\"\n        );\n\n        //list of funders\n        funders.push(msg.sender);\n\n        //map funders with amount funded\n        funderAmount[msg.sender] += msg.value;\n    }\n\n    modifier onlyOwner() {\n        //only owner can withdraw\n        if (msg.sender != i_owner) revert NotOwner();\n        _;\n    }\n\n    function withdrawal() public onlyOwner {\n        //possibility to withdraw funds\n        //3 variables allow to withdraw money call, send transfer. we will use the call variable\n        (bool tokenWithdrawn, ) = payable(msg.sender).call{\n            value: address(this).balance\n        }(\"\");\n        require(tokenWithdrawn, \"You are not the contract Owner...\");\n\n        //set funders amount to zero once withdrawal done\n        for (uint256 i = 0; i < funders.length; i++) {\n            address funder = funders[i];\n            funderAmount[funder] = 0;\n        }\n        funders = new address[](0);\n    }\n}\n"
+    },
+    "contracts/PriceConverter.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.7;\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\n\nlibrary PriceConverter {\n    //need 3 functions 1. to get the ETH price 2. price version giving by the oracle 3. convert the eth price in dollar\n    function getPrice(\n        AggregatorV3Interface priceFeed\n    ) internal view returns (uint256) {\n        (, int price, , , ) = priceFeed.latestRoundData();\n        return uint256(price * 1e10);\n    }\n\n    function convertedPriceRate(\n        uint256 ethAmount,\n        AggregatorV3Interface priceFeed\n    ) internal view returns (uint256) {\n        uint256 ethPrice = getPrice(priceFeed);\n        uint256 ethAmountInUsd = (ethAmount * ethPrice) / 1e18;\n        return ethAmountInUsd;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
